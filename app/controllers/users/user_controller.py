@@ -3,11 +3,6 @@ from ...models.schemas import StandardResponse
 from ...services.article_service import ArticleService
 from ...services.user_service import UserService
 from ...middleware.auth import get_current_user
-from pydantic import BaseModel
-
-class InviteAuthorRequest(BaseModel):
-    email: str
-    channel_id: int
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -83,23 +78,5 @@ async def unban_user(user_id: str, current_user = Depends(get_current_user)):
         
         UserService.unban_user(user_id)
         return StandardResponse(success=True, message="User unbanned")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/admin/invite-author")
-async def invite_author(
-    invite_data: InviteAuthorRequest,
-    current_user = Depends(get_current_user)
-):
-    try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
-        result = UserService.invite_author(invite_data.email, invite_data.channel_id)
-        return StandardResponse(
-            success=True,
-            data={"invitation": result},
-            message="Author invitation sent"
-        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -74,3 +74,11 @@ async def require_reader(current_user = Depends(get_current_user)):
 async def require_any_auth(current_user = Depends(get_current_user)):
     # Any authenticated user can access
     return current_user
+
+async def require_author_or_reader(current_user = Depends(get_current_user)):
+    if current_user.role not in ['author', 'reader']:
+        raise HTTPException(
+            status_code=403,
+            detail="Access forbidden. Author or Reader role required."
+        )
+    return current_user

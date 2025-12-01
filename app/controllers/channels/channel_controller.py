@@ -108,6 +108,18 @@ async def get_public_channels():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/list")
+async def get_all_channels(current_user = Depends(get_current_user)):
+    try:
+        channels = ChannelService.get_all_channels()
+        return StandardResponse(
+            success=True,
+            data={"channels": channels},
+            message="All channels retrieved successfully"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{channel_id}/follow")
 async def follow_channel(channel_id: int, current_user = Depends(get_current_user)):
     try:

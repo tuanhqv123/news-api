@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
-from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, StandardResponse
+from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, UserInvite, StandardResponse
 from ...services.auth_service import AuthService
+from ...services.role_service import RoleService
 from ...middleware.auth import get_current_user, require_admin, require_author, require_any_auth
 from ...config.database import supabase_admin, supabase
 import secrets
@@ -127,17 +128,27 @@ async def update_profile(profile_data: UserProfile, current_user = Depends(get_c
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/admin/invite-author")
-async def invite_author(invite_data: AuthorInvite, current_user = Depends(require_admin)):
+@router.post("/admin/invite-user")
+async def invite_user(invite_data: UserInvite, current_user = Depends(require_admin)):
     try:
+        # Get role name from role_id
+        role_result = supabase.table("roles").select("name").eq("id", invite_data.role_id).execute()
+        if not role_result.data:
+            raise HTTPException(status_code=400, detail="Invalid role_id")
+        role_name = role_result.data[0]["name"]
+
         # Use Supabase's built-in invitation system with admin client
+        user_metadata = {
+            "role": role_name,
+            "role_id": invite_data.role_id,
+            "invited_by": invite_data.invited_by
+        }
+        if invite_data.channel_id:
+            user_metadata["channel_id"] = invite_data.channel_id
+
         auth_response = supabase_admin.auth.admin.inviteUserByEmail(
             email=invite_data.email,
-            data={
-                "display_name": invite_data.display_name,
-                "channel_id": invite_data.channel_id,
-                "role": "author"
-            }
+            data=user_metadata
         )
 
         if auth_response.user:
@@ -146,9 +157,10 @@ async def invite_author(invite_data: AuthorInvite, current_user = Depends(requir
                 data={
                     "user_id": auth_response.user.id,
                     "email": auth_response.user.email,
+                    "role": role_name,
                     "message": "Invitation sent successfully"
                 },
-                message="Author invitation sent successfully"
+                message="User invitation sent successfully"
             )
         else:
             raise HTTPException(status_code=400, detail="Failed to send invitation")
@@ -181,3 +193,15 @@ async def set_user_role(user_id: str, role: str, current_user = Depends(require_
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/roles")
+async def get_roles(current_user = Depends(require_any_auth)):
+    try:
+        roles = RoleService.get_all_roles()
+        return StandardResponse(
+            success=True,
+            data={"roles": roles},
+            message="Roles retrieved successfully"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

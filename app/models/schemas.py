@@ -28,6 +28,12 @@ class AuthorInvite(BaseModel):
     display_name: Optional[str] = None
     channel_id: int
 
+class UserInvite(BaseModel):
+    email: EmailStr
+    role_id: int
+    channel_id: Optional[int] = None
+    invited_by: str
+
 # Article schemas
 class ArticleCreate(BaseModel):
     title: str
