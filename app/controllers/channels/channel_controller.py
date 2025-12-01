@@ -139,7 +139,7 @@ async def unfollow_channel(channel_id: int, current_user = Depends(get_current_u
     try:
         if current_user.role != 'reader':
             raise HTTPException(status_code=403, detail="Reader role required")
-        
+
         ChannelService.unfollow_channel(channel_id, current_user.id)
         return StandardResponse(
             success=True,
@@ -147,3 +147,18 @@ async def unfollow_channel(channel_id: int, current_user = Depends(get_current_u
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/followed")
+async def get_followed_channels(current_user = Depends(get_current_user)):
+    try:
+        if current_user.role != 'reader':
+            raise HTTPException(status_code=403, detail="Reader role required")
+
+        channels = ChannelService.get_followed_channels(current_user.id)
+        return StandardResponse(
+            success=True,
+            data={"channels": channels},
+            message="Followed channels retrieved successfully"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, UserInvite, StandardResponse
+from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, UserInvite, UserResponse, StandardResponse
 from ...services.auth_service import AuthService
 from ...services.role_service import RoleService
 from ...middleware.auth import get_current_user, require_admin, require_author, require_any_auth
@@ -81,6 +81,7 @@ async def login(user_data: UserLogin):
                 success=True,
                 data={
                     "access_token": auth_response.session.access_token,
+                    "refresh_token": auth_response.session.refresh_token,  # Add refresh token
                     "user": {
                         "id": auth_response.user.id,
                         "email": auth_response.user.email,
@@ -105,9 +106,17 @@ async def logout(current_user = Depends(get_current_user)):
 
 @router.get("/me")
 async def get_me(current_user = Depends(get_current_user)):
+    user_response = UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role,
+        display_name=current_user.display_name,
+        avatar_url=current_user.avatar_url,
+        channel_id=current_user.channel_id
+    )
     return StandardResponse(
         success=True,
-        data={"user": current_user},
+        data={"user": user_response.model_dump()},
         message="User profile retrieved"
     )
 
@@ -194,14 +203,21 @@ async def set_user_role(user_id: str, role: str, current_user = Depends(require_
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/roles")
-async def get_roles(current_user = Depends(require_any_auth)):
+@router.post("/refresh")
+async def refresh_token(refresh_token: str):
     try:
-        roles = RoleService.get_all_roles()
-        return StandardResponse(
-            success=True,
-            data={"roles": roles},
-            message="Roles retrieved successfully"
-        )
+        # Use Supabase to refresh the session
+        auth_response = supabase.auth.refresh_session(refresh_token)
+        if auth_response.session:
+            return StandardResponse(
+                success=True,
+                data={
+                    "access_token": auth_response.session.access_token,
+                    "refresh_token": auth_response.session.refresh_token  # Include new refresh token
+                },
+                message="Token refreshed successfully"
+            )
+        else:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=401, detail=str(e))

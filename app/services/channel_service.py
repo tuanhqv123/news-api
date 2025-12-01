@@ -93,7 +93,7 @@ class ChannelService:
         """Follow a channel (reader only)"""
         try:
             # Check if already following
-            existing = supabase.table("channel_followers").select("channel_id").eq("channel_id", channel_id).eq("user_id", user_id).execute()
+            existing = supabase.table("channel_followers").select("channel_id, user_id").eq("channel_id", channel_id).eq("user_id", user_id).execute()
             if existing.data:
                 raise Exception("Already following this channel")
 
@@ -122,5 +122,29 @@ class ChannelService:
         try:
             response = supabase.table("channel_followers").select("channel_id").eq("channel_id", channel_id).eq("user_id", user_id).execute()
             return len(response.data) > 0
+        except Exception as e:
+            raise e
+
+    @staticmethod
+    def get_followed_channels(user_id: str) -> List[Dict[str, Any]]:
+        """Get all channels followed by a user"""
+        try:
+            response = supabase.table("channel_followers")\
+                .select("channels(*)")\
+                .eq("user_id", user_id)\
+                .eq("channels.is_active", True)\
+                .order("followed_at", desc=True)\
+                .execute()
+
+            # Extract channel data from the nested response
+            followed_channels = []
+            for item in response.data:
+                if "channels" in item and item["channels"]:
+                    # Include the followed_at timestamp in the channel data
+                    channel_data = item["channels"]
+                    channel_data["followed_at"] = item.get("followed_at")
+                    followed_channels.append(channel_data)
+
+            return followed_channels
         except Exception as e:
             raise e

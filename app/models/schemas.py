@@ -23,6 +23,14 @@ class UserProfile(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    role: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    channel_id: Optional[int] = None
+
 class AuthorInvite(BaseModel):
     email: EmailStr
     display_name: Optional[str] = None
