@@ -20,6 +20,19 @@ async def get_articles(page: int = 1, limit: int = 10, category: Optional[int] =
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/search")
+async def search_articles(q: str, page: int = 1, limit: int = 10):
+    """Public endpoint to search published articles"""
+    try:
+        articles = ArticleService.search_articles(q, page, limit)
+        return StandardResponse(
+            success=True,
+            data={"articles": articles, "page": page, "limit": limit},
+            message="Articles searched"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{article_id}")
 async def get_article(article_id: str):
     """Public endpoint to get a specific published article"""
@@ -133,19 +146,6 @@ async def update_article_status(article_id: str, status: str, current_user = Dep
         return StandardResponse(success=True, message=f"Article status updated to {status}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/search")
-async def search_articles(q: str, page: int = 1, limit: int = 10):
-    """Public endpoint to search published articles"""
-    try:
-        articles = ArticleService.search_articles(q, page, limit)
-        return StandardResponse(
-            success=True,
-            data={"articles": articles, "page": page, "limit": limit},
-            message="Articles searched"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/admin/pending")
 async def get_pending_articles(current_user = Depends(require_admin)):

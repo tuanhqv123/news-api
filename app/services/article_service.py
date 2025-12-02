@@ -128,10 +128,33 @@ class ArticleService:
     @staticmethod
     def get_comments(article_id: str):
         try:
+            # Get comments with basic data
             response = supabase.table("comments").select(
-                "*, profiles(*)"
+                "id, user_id, article_id, body, created_at"
             ).eq("article_id", article_id).order("created_at", desc=True).execute()
-            return response.data
+
+            comments = response.data
+            if comments:
+                # Get user IDs from comments
+                user_ids = list(set([comment['user_id'] for comment in comments]))
+
+                # Fetch profiles for these users
+                profiles_response = supabase.table("profiles").select(
+                    "user_id, display_name, avatar_url"
+                ).in_("user_id", user_ids).execute()
+
+                # Create a lookup map for profiles
+                profiles_map = {profile['user_id']: profile for profile in profiles_response.data}
+
+                # Attach profile info to each comment
+                for comment in comments:
+                    user_id = comment['user_id']
+                    if user_id in profiles_map:
+                        comment['profile'] = profiles_map[user_id]
+                    else:
+                        comment['profile'] = {'user_id': user_id, 'display_name': 'Anonymous', 'avatar_url': None}
+
+            return comments
         except Exception as e:
             raise e
 
@@ -227,7 +250,7 @@ class ArticleService:
             offset = (page - 1) * limit
             response = supabase.table("articles").select(
                 "*, article_categories(*), channels(*)"
-            ).or_(f"title.ilike.%{query}%,content.ilike.%{query}%,summary.ilike.%{query}%").eq("status", "published").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            ).ilike("title", f"%{query}%").eq("status", "published").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
             return response.data
         except Exception as e:
             raise e
