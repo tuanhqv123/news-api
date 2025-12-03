@@ -72,9 +72,12 @@ class ArticleService:
                 "content": article_data['content'],
                 "channel_id": article_data['channel_id'],
                 "user_id": user_id,  # Add the user who created the article
-                "view_count": 0
+                "view_count": 0,
+                "hero_image_url": article_data.get('hero_image_url'),
+                "source_url": article_data.get('source_url'),
+                "language": article_data.get('language')
             }
-            
+
             # Only set status if explicitly provided, otherwise use database default
             if 'status' in article_data:
                 insert_data['status'] = article_data['status']
@@ -280,6 +283,18 @@ class ArticleService:
             response = supabase.table("channel_subscriptions").select(
                 "*, channels(*)"
             ).eq("user_id", user_id).execute()
+            return response.data
+        except Exception as e:
+            raise e
+
+    @staticmethod
+    def get_user_articles(user_id: str, page: int = 1, limit: int = 10):
+        """Get all articles created by a specific user"""
+        try:
+            offset = (page - 1) * limit
+            response = supabase.table("articles").select(
+                "*, article_categories(*), channels(*)"
+            ).eq("user_id", user_id).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
             return response.data
         except Exception as e:
             raise e

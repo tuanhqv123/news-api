@@ -33,6 +33,19 @@ async def search_articles(q: str, page: int = 1, limit: int = 10):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/my-articles")
+async def get_my_articles(page: int = 1, limit: int = 10, current_user = Depends(require_author)):
+    """Get all articles created by the current user"""
+    try:
+        articles = ArticleService.get_user_articles(current_user.id, page, limit)
+        return StandardResponse(
+            success=True,
+            data={"articles": articles, "page": page, "limit": limit},
+            message="Your articles retrieved"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{article_id}")
 async def get_article(article_id: str):
     """Public endpoint to get a specific published article"""
