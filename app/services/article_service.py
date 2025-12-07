@@ -210,37 +210,61 @@ class ArticleService:
         except Exception as e:
             raise e
 
-    @staticmethod
-    def publish_article(article_id: str):
-        try:
-            response = supabase.table("articles").update({
-                "status": "published",
-                "published_at": "now()"
-            }).eq("id", article_id).eq("status", "pending_review").execute()
-            if not response.data:
-                raise Exception("Article not found or not in pending_review status")
-            return response.data[0]
-        except Exception as e:
-            raise e
-
+    
     @staticmethod
     def get_all_articles(page: int = 1, limit: int = 10):
         try:
             offset = (page - 1) * limit
+            # Get articles with categories and channels
             response = supabase.table("articles").select(
                 "*, article_categories(*), channels(*)"
             ).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
-            return response.data
+
+            articles = response.data
+
+            # If we have articles, fetch author information
+            if articles:
+                # Get all unique user_ids from articles
+                user_ids = list(set([article['user_id'] for article in articles if article.get('user_id')]))
+
+                if user_ids:
+                    # Fetch profiles for these users
+                    profiles_response = supabase.table("profiles").select(
+                        "user_id, display_name, avatar_url"
+                    ).in_("user_id", user_ids).execute()
+
+                    # Create a lookup map for profiles
+                    profiles_map = {profile['user_id']: profile for profile in profiles_response.data}
+
+                    # Attach author info to each article
+                    for article in articles:
+                        user_id = article.get('user_id')
+                        if user_id and user_id in profiles_map:
+                            article['author'] = profiles_map[user_id]
+                        else:
+                            article['author'] = {
+                                'user_id': user_id,
+                                'display_name': 'Unknown Author',
+                                'avatar_url': None
+                            }
+
+            return articles
         except Exception as e:
             raise e
 
     @staticmethod
     def update_article_status(article_id: str, status: str):
         try:
-            response = supabase.table("articles").update({
+            update_data = {
                 "status": status,
                 "updated_at": "now()"
-            }).eq("id", article_id).execute()
+            }
+
+            # Set published_at when status is published
+            if status == "published":
+                update_data["published_at"] = "now()"
+
+            response = supabase.table("articles").update(update_data).eq("id", article_id).execute()
             if not response.data:
                 raise Exception("Article not found")
             return response.data[0]

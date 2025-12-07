@@ -22,6 +22,7 @@ from app.controllers.users.user_controller import router as user_router
 from app.controllers.categories.category_controller import router as category_router
 from app.controllers.channels.channel_controller import router as channel_router
 from app.controllers.media.media_controller import router as media_router
+from app.controllers.notifications.notification_controller import router as notification_router
 
 app.include_router(auth_router)
 app.include_router(article_router)
@@ -29,6 +30,7 @@ app.include_router(user_router)
 app.include_router(category_router)
 app.include_router(channel_router)
 app.include_router(media_router)
+app.include_router(notification_router)
 
 @app.get("/")
 async def root():

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, UserInvite, UserResponse, StandardResponse
+from ...models.schemas import UserRegister, UserLogin, UserProfile, AuthorInvite, UserInvite, UserResponse, StandardResponse, LogoutRequest
 from ...services.auth_service import AuthService
 from ...services.role_service import RoleService
 from ...middleware.auth import get_current_user, require_admin, require_author, require_any_auth
@@ -60,7 +60,7 @@ async def login(user_data: UserLogin):
         if auth_response.session:
             # Check user's role from profiles table
             try:
-                profile_result = supabase.table("profiles").select("role_id, display_name").eq("user_id", auth_response.user.id).execute()
+                profile_result = supabase.table("profiles").select("role_id, display_name, avatar_url").eq("user_id", auth_response.user.id).execute()
                 if profile_result.data and len(profile_result.data) > 0:
                     profile = profile_result.data[0]
                     # Get role name from roles table
@@ -70,12 +70,15 @@ async def login(user_data: UserLogin):
                     else:
                         user_role = "reader"
                     display_name = profile.get("display_name")
+                    avatar_url = profile.get("avatar_url")
                 else:
                     user_role = "reader"
                     display_name = None
+                    avatar_url = None
             except Exception:
                 user_role = "reader"
                 display_name = None
+                avatar_url = None
 
             return StandardResponse(
                 success=True,
@@ -86,7 +89,8 @@ async def login(user_data: UserLogin):
                         "id": auth_response.user.id,
                         "email": auth_response.user.email,
                         "role": user_role,
-                        "display_name": display_name
+                        "display_name": display_name,
+                        "avatar_url": avatar_url
                     }
                 },
                 message="Login successful"
@@ -97,10 +101,28 @@ async def login(user_data: UserLogin):
         raise HTTPException(status_code=401, detail=str(e))
 
 @router.post("/logout")
-async def logout(current_user = Depends(get_current_user)):
+async def logout(
+    logout_data: LogoutRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    Logout user and optionally set device token to guest mode
+    """
     try:
+        # Logout from Supabase auth
         AuthService.logout()
-        return StandardResponse(success=True, message="Logout successful")
+
+        # If fcm_token is provided, set user_id to null (guest mode)
+        if logout_data.fcm_token:
+            supabase.table("users_devices")\
+                .update({"user_id": None})\
+                .eq("fcm_token", logout_data.fcm_token)\
+                .execute()
+
+        return StandardResponse(
+            success=True,
+            message="Logout successful"
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -155,9 +177,8 @@ async def invite_user(invite_data: UserInvite, current_user = Depends(require_ad
         if invite_data.channel_id:
             user_metadata["channel_id"] = invite_data.channel_id
 
-        auth_response = supabase_admin.auth.admin.inviteUserByEmail(
-            email=invite_data.email,
-            data=user_metadata
+        auth_response = supabase_admin.auth.admin.invite_user_by_email(
+            email=invite_data.email
         )
 
         if auth_response.user:
@@ -177,31 +198,6 @@ async def invite_user(invite_data: UserInvite, current_user = Depends(require_ad
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/admin/set-role")
-async def set_user_role(user_id: str, role: str, current_user = Depends(require_admin)):
-    try:
-        if role not in ['admin', 'author', 'reader']:
-            raise HTTPException(status_code=400, detail="Invalid role")
-
-        # Update user's role in auth.users table
-        user_metadata = {"role": role}
-
-        response = supabase_admin.auth.admin.updateUserById(
-            user_id=user_id,
-            attributes={"user_metadata": user_metadata}
-        )
-
-        if response.user:
-            return StandardResponse(
-                success=True,
-                data={"user_id": user_id, "role": role},
-                message=f"User role updated to {role}"
-            )
-        else:
-            raise HTTPException(status_code=400, detail="Failed to update user role")
-
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/refresh")
 async def refresh_token(refresh_token: str):

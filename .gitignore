@@ -4,3 +4,9 @@ __pycache__/
 .vscode/
 .mcp.json
 .env
+firebase-service-account.json
+*.pem
+*.key
+*.json
+!package.json
+!package-lock.json

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ...models.schemas import StandardResponse
 from ...services.article_service import ArticleService
 from ...services.user_service import UserService
-from ...middleware.auth import get_current_user
+from ...middleware.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -18,65 +18,42 @@ async def get_user_bookmarks(current_user = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/admin/pending-authors")
-async def get_pending_authors(current_user = Depends(get_current_user)):
-    try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
-        users = UserService.get_pending_authors()
-        return StandardResponse(
-            success=True,
-            data={"users": users},
-            message="Pending authors retrieved"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.put("/admin/approve-author/{user_id}")
-async def approve_author(user_id: str, current_user = Depends(get_current_user)):
-    try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
-        UserService.approve_author(user_id)
-        return StandardResponse(success=True, message="Author approved")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/admin/all-profiles")
-async def get_all_user_profiles(current_user = Depends(get_current_user)):
+async def get_all_user_profiles(role: str = None, current_user = Depends(require_admin)):
     try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
-        profiles = UserService.get_all_user_profiles()
+        profiles = UserService.get_all_user_profiles(role_filter=role)
         return StandardResponse(
             success=True,
             data={"profiles": profiles},
-            message="All user profiles retrieved"
+            message="User profiles retrieved"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/admin/ban/{user_id}")
-async def ban_user(user_id: str, current_user = Depends(get_current_user)):
+async def ban_user(user_id: str, current_user = Depends(require_admin)):
     try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
         UserService.ban_user(user_id)
         return StandardResponse(success=True, message="User banned")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/admin/unban/{user_id}")
-async def unban_user(user_id: str, current_user = Depends(get_current_user)):
+async def unban_user(user_id: str, current_user = Depends(require_admin)):
     try:
-        if current_user.role != 'admin':
-            raise HTTPException(status_code=403, detail="Admin role required")
-        
         UserService.unban_user(user_id)
         return StandardResponse(success=True, message="User unbanned")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/admin/set-role/{user_id}")
+async def set_user_role(user_id: str, role: str, current_user = Depends(require_admin)):
+    try:
+        if role not in ['admin', 'author', 'reader']:
+            raise HTTPException(status_code=400, detail="Invalid role")
+
+        UserService.update_user_role(user_id, role)
+        return StandardResponse(success=True, message=f"User role updated to {role}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

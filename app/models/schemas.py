@@ -67,6 +67,15 @@ class ArticleUpdate(BaseModel):
 class CommentCreate(BaseModel):
     content: str
 
+# Notification schemas
+class DeviceTokenRegister(BaseModel):
+    fcm_token: str
+    device_type: Optional[str] = "android"
+    user_id: Optional[str] = None  # UUID of user, null for guests
+
+class LogoutRequest(BaseModel):
+    fcm_token: Optional[str] = None  # Optional: device token to set user_id to null
+
 # Category schemas
 class CategoryCreate(BaseModel):
     name: str

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from ...models.schemas import ArticleCreate, CommentCreate, StandardResponse
 from ...services.article_service import ArticleService
+from ...services.notification_service import notification_service
 from ...middleware.auth import require_admin, require_author, require_reader
 from ...config.database import supabase
 
@@ -84,6 +85,19 @@ async def create_article(article_data: ArticleCreate, current_user = Depends(req
             article_data_dict.pop('status', None)
 
         article = ArticleService.create_article(article_data_dict, current_user.id)
+
+        # Send notification to admins when author creates an article
+        if current_user.role == 'author':
+            author_name = current_user.display_name or current_user.email
+            try:
+                notification_service.notify_admins_new_article(
+                    article_title=article["title"],
+                    author_name=author_name,
+                    article_id=article["id"]
+                )
+            except Exception:
+                pass
+
         return StandardResponse(
             success=True,
             data={"article": article},
@@ -132,11 +146,47 @@ async def remove_bookmark(article_id: str, current_user = Depends(require_reader
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/{article_id}/publish")
-async def publish_article(article_id: str, current_user = Depends(require_admin)):
+@router.put("/{article_id}/status")
+async def update_article_status(article_id: str, status: str, current_user = Depends(require_admin)):
     try:
-        ArticleService.publish_article(article_id)
-        return StandardResponse(success=True, message="Article published")
+        # Get article details before updating for notification
+        article_response = supabase.table("articles").select("*").eq("id", article_id).single().execute()
+        if not article_response.data:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        article = article_response.data
+
+        # Update the article status
+        updated_article = ArticleService.update_article_status(article_id, status)
+
+        # Send notification to author AND admins if status changed
+        if article.get("user_id") and article.get("status") != status:
+            try:
+                author_response = supabase.table("profiles").select("display_name").eq("user_id", article["user_id"]).single().execute()
+                author_name = author_response.data.get("display_name", "Unknown Author") if author_response.data else "Unknown Author"
+
+                notification_service.notify_author_status_change(
+                    article_title=article["title"],
+                    status=status,
+                    author_user_id=article["user_id"],
+                    article_id=article_id
+                )
+
+                notification_service.notify_admins_status_change(
+                    article_title=article["title"],
+                    status=status,
+                    author_name=author_name,
+                    article_id=article_id
+                )
+
+            except Exception:
+                pass
+
+        return StandardResponse(
+            success=True,
+            data={"article": updated_article},
+            message=f"Article status updated to {status}"
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -172,32 +222,3 @@ async def get_pending_articles(current_user = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/admin/approve/{article_id}")
-async def approve_article(article_id: str, current_user = Depends(require_admin)):
-    try:
-        article = ArticleService.approve_article(article_id)
-        if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        return StandardResponse(
-            success=True,
-            data={"article": article},
-            message="Article approved and published"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.put("/admin/reject/{article_id}")
-async def reject_article(article_id: str, current_user = Depends(require_admin)):
-    try:
-        article = ArticleService.reject_article(article_id)
-        if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        return StandardResponse(
-            success=True,
-            data={"article": article},
-            message="Article rejected"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
