@@ -178,7 +178,10 @@ async def invite_user(invite_data: UserInvite, current_user = Depends(require_ad
             user_metadata["channel_id"] = invite_data.channel_id
 
         auth_response = supabase_admin.auth.admin.invite_user_by_email(
-            email=invite_data.email
+            email=invite_data.email,
+            options={
+                "data": user_metadata
+            }
         )
 
         if auth_response.user:

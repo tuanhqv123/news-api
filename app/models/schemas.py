@@ -109,3 +109,21 @@ class ChannelUpdate(BaseModel):
 # Additional schemas
 class BookmarkToggle(BaseModel):
     is_bookmarked: bool
+
+# Android invitation schemas
+class AndroidInviteRequest(BaseModel):
+    email: EmailStr
+    role_id: int
+    channel_id: Optional[int] = None
+    invited_by: str
+    app_scheme: Optional[str] = "newsapp"  # Custom app scheme for deep linking
+
+class AndroidInviteVerify(BaseModel):
+    token_hash: str  # Token from email link
+    email: str  # User's email for verification
+
+class AndroidPasswordSetup(BaseModel):
+    token_hash: str  # Token from email link
+    email: str  # User's email
+    password: str  # New password to set
+    device_info: Optional[dict] = None  # Optional device info for tracking

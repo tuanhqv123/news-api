@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 from app.controllers.auth.auth_controller import router as auth_router
+from app.controllers.auth.android_invitation_controller import router as android_invitation_router
 from app.controllers.articles.article_controller import router as article_router
 from app.controllers.users.user_controller import router as user_router
 from app.controllers.categories.category_controller import router as category_router
@@ -25,6 +26,7 @@ from app.controllers.media.media_controller import router as media_router
 from app.controllers.notifications.notification_controller import router as notification_router
 
 app.include_router(auth_router)
+app.include_router(android_invitation_router)
 app.include_router(article_router)
 app.include_router(user_router)
 app.include_router(category_router)
