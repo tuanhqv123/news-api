@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
-from ...models.schemas import DeviceTokenRegister, StandardResponse
+from typing import Optional, List, Dict
+from ...models.schemas import DeviceTokenRegister, SendNotificationRequest, StandardResponse
 from ...middleware.auth import get_current_user
 from ...config.database import supabase
 
@@ -79,5 +79,35 @@ async def get_my_devices(user_id: Optional[str] = None):
             data={"devices": result.data},
             message="Devices retrieved successfully"
         )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/send")
+async def send_notification(request: SendNotificationRequest):
+    """
+    Send push notifications to specific FCM tokens
+    Reuses the existing send_notification method from NotificationService
+    **No authentication required - public endpoint**
+    """
+    try:
+        from ...services.notification_service import notification_service
+
+        # Use the existing send_notification method
+        result = notification_service.send_notification(
+            title=request.title,
+            body=request.body,
+            fcm_tokens=request.fcm_tokens,
+            data=request.data,
+            image_url=request.image_url
+        )
+
+        return StandardResponse(
+            success=result["success"],
+            data=result,
+            message="Notifications sent successfully"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

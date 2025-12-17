@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 # Response wrapper for consistent API responses
@@ -75,6 +75,13 @@ class DeviceTokenRegister(BaseModel):
 
 class LogoutRequest(BaseModel):
     fcm_token: Optional[str] = None  # Optional: device token to set user_id to null
+
+class SendNotificationRequest(BaseModel):
+    fcm_tokens: List[str]
+    title: str = Field(..., description="Notification title")
+    body: str = Field(..., description="Notification body")
+    image_url: Optional[str] = Field(None, description="Optional image URL")
+    data: Optional[Dict[str, str]] = None  # Custom data for deep linking
 
 # Category schemas
 class CategoryCreate(BaseModel):
