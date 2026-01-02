@@ -134,3 +134,7 @@ class AndroidPasswordSetup(BaseModel):
     email: str  # User's email
     password: str  # New password to set
     device_info: Optional[dict] = None  # Optional device info for tracking
+
+class GoogleSignInRequest(BaseModel):
+    id_token: str
+    nonce: Optional[str] = None

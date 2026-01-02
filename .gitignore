@@ -11,3 +11,5 @@ firebase-service-account.json
 !package.json
 !package-lock.json
 CLAUDE.md
+venv/
+.idea/
