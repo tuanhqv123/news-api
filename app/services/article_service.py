@@ -1,33 +1,71 @@
 from ..config.database import supabase
 from ..models.schemas import ArticleCreate, CommentCreate
+from typing import Optional
 
 class ArticleService:
     @staticmethod
-    def get_articles(page: int = 1, limit: int = 10, category: int = None):
-        try:
-            offset = (page - 1) * limit
+    def get_articles(page: int = 1, limit: int = 10, category: Optional[int] = None, channel_id: Optional[int] = None):
+        """Get published articles with optional filters"""
+        offset = (page - 1) * limit
+        
+        # ✅ Nếu filter by category, phải query qua article_categories
+        article_ids = None
+        if category:
+            # Get article IDs that belong to this category
+            cat_response = supabase.table("article_categories") \
+                .select("article_id") \
+                .eq("category_id", category) \
+                .execute()
             
-            if category:
-                # First get article_ids that belong to the category
-                category_articles = supabase.table("article_categories").select("article_id").eq("category_id", category).execute()
-                article_ids = [item["article_id"] for item in category_articles.data]
-                
-                if not article_ids:
-                    return []
-                
-                # Then get articles with those IDs
-                response = supabase.table("articles").select(
-                    "*, article_categories(*), channels(*)"
-                ).eq("status", "published").in_("id", article_ids).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            if cat_response.data:
+                article_ids = [item['article_id'] for item in cat_response.data]
             else:
-                # Get all published articles
-                response = supabase.table("articles").select(
-                    "*, article_categories(*), channels(*)"
-                ).eq("status", "published").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+                # No articles in this category
+                return []
+        
+        # Build query
+        query = supabase.table("articles") \
+            .select("*") \
+            .eq("status", "published") \
+            .order("published_at", desc=True)
+        
+        # ✅ Filter by article_ids if category filter applied
+        if article_ids is not None:
+            if not article_ids:
+                return []
+            query = query.in_("id", article_ids)
+        
+        # ✅ Filter by channel
+        if channel_id:
+            query = query.eq("channel_id", channel_id)
+        
+        response = query.range(offset, offset + limit - 1).execute()
+        articles = response.data
+        
+        # Fetch author info separately
+        if articles:
+            user_ids = list(set([article['user_id'] for article in articles if article.get('user_id')]))
             
-            return response.data
-        except Exception as e:
-            raise e
+            if user_ids:
+                profiles_response = supabase.table("profiles").select(
+                    "user_id, display_name, avatar_url"
+                ).in_("user_id", user_ids).execute()
+                
+                profiles_map = {profile['user_id']: profile for profile in profiles_response.data}
+                
+                for article in articles:
+                    user_id = article.get('user_id')
+                    if user_id and user_id in profiles_map:
+                        article['author'] = profiles_map[user_id]
+                    else:
+                        article['author'] = {
+                            'user_id': user_id,
+                            'display_name': 'Unknown',
+                            'avatar_url': None
+                        }
+        
+        return articles
+
 
     @staticmethod
     def get_article(article_id: str):
